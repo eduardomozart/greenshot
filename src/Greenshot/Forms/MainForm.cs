@@ -140,15 +140,34 @@ namespace Greenshot.Forms
                     _conf.Language = options.Language;
                 }
 
-                if (options.Files.Length == 1 && !isAlreadyRunning)
+                if (options.Files.Length > 0 && !isAlreadyRunning)
                 {
                     // Try forwarding file-open requests first, even when mutex detection says no instance is running.
                     // This avoids duplicate instance startup when mutex visibility differs from named-pipe visibility.
-                    if (NamedPipeClient.SendMessage(IpcEnvelope.CreateOpenFile(options.Files[0]), timeoutMs: 250))
+                    var filesToOpenLocally = new List<string>();
+                    bool anyForwarded = false;
+                    foreach (string fileToOpen in options.Files)
+                    {
+                        if (NamedPipeClient.SendMessage(IpcEnvelope.CreateOpenFile(fileToOpen), timeoutMs: 250))
+                        {
+                            anyForwarded = true;
+                        }
+                        else
+                        {
+                            filesToOpenLocally.Add(fileToOpen);
+                        }
+                    }
+
+                    if (anyForwarded && filesToOpenLocally.Count == 0)
                     {
                         FreeMutex();
                         Application.Exit();
                         return;
+                    }
+
+                    if (anyForwarded)
+                    {
+                        options.Files = filesToOpenLocally.ToArray();
                     }
                 }
 
