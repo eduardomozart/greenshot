@@ -157,14 +157,14 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
                 PathRemoveFileSpecW(szDir);
 
                 std::wstring parameters = L"\"" + std::wstring(pszName) + L"\"";
-                std::wstring commandLine = L"\"" + exePath + L"\" " + parameters;
+                std::wstring commandLine = parameters;
                 std::vector<wchar_t> cmdLine(commandLine.begin(), commandLine.end());
                 cmdLine.push_back(L'\0');
 
                 STARTUPINFOW si = { sizeof(si) };
                 PROCESS_INFORMATION pi;
                 if (CreateProcessW(
-                    NULL,
+                    exePath.c_str(),
                     cmdLine.data(),
                     NULL,
                     NULL,
