@@ -195,8 +195,9 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
                 wcscpy_s(szDir, exePath.c_str());
                 PathRemoveFileSpecW(szDir);
 
+                std::wstring escapedExePath = EscapeForQuotedCommandLineArgument(exePath);
                 std::wstring escapedPath = EscapeForQuotedCommandLineArgument(pszName);
-                std::wstring commandLine = L"\"" + escapedPath + L"\"";
+                std::wstring commandLine = L"\"" + escapedExePath + L"\" \"" + escapedPath + L"\"";
                 std::vector<wchar_t> cmdLine(commandLine.begin(), commandLine.end());
                 cmdLine.push_back(L'\0');
 
