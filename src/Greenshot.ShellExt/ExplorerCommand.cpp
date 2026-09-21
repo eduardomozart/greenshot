@@ -1,5 +1,4 @@
 #include "ExplorerCommand.h"
-#include <shellapi.h>
 #include <shlwapi.h>
 #include <string>
 #include <vector>
@@ -158,37 +157,26 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
                 PathRemoveFileSpecW(szDir);
 
                 std::wstring parameters = L"\"" + std::wstring(pszName) + L"\"";
-                HINSTANCE shellExecuteResult = ShellExecuteW(
+                std::wstring commandLine = L"\"" + exePath + L"\" " + parameters;
+                std::vector<wchar_t> cmdLine(commandLine.begin(), commandLine.end());
+                cmdLine.push_back(L'\0');
+
+                STARTUPINFOW si = { sizeof(si) };
+                PROCESS_INFORMATION pi;
+                if (CreateProcessW(
                     NULL,
-                    L"open",
-                    exePath.c_str(),
-                    parameters.c_str(),
+                    cmdLine.data(),
+                    NULL,
+                    NULL,
+                    FALSE,
+                    0,
+                    NULL,
                     szDir,
-                    SW_SHOWNORMAL);
-
-                if ((INT_PTR)shellExecuteResult <= 32)
+                    &si,
+                    &pi))
                 {
-                    std::wstring commandLine = L"\"" + exePath + L"\" " + parameters;
-                    std::vector<wchar_t> cmdLine(commandLine.begin(), commandLine.end());
-                    cmdLine.push_back(L'\0');
-
-                    STARTUPINFOW si = { sizeof(si) };
-                    PROCESS_INFORMATION pi;
-                    if (CreateProcessW(
-                        NULL,
-                        cmdLine.data(),
-                        NULL,
-                        NULL,
-                        FALSE,
-                        0,
-                        NULL,
-                        szDir,
-                        &si,
-                        &pi))
-                    {
-                        CloseHandle(pi.hProcess);
-                        CloseHandle(pi.hThread);
-                    }
+                    CloseHandle(pi.hProcess);
+                    CloseHandle(pi.hThread);
                 }
 
                 CoTaskMemFree(pszName);
