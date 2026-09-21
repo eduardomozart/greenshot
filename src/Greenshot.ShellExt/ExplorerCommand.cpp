@@ -5,6 +5,45 @@
 
 extern long g_cRefModule;
 
+static std::wstring EscapeForQuotedCommandLineArgument(const std::wstring& argument)
+{
+    std::wstring escaped;
+    escaped.reserve(argument.size());
+
+    size_t backslashCount = 0;
+    for (wchar_t ch : argument)
+    {
+        if (ch == L'\\')
+        {
+            ++backslashCount;
+            continue;
+        }
+
+        if (ch == L'"')
+        {
+            escaped.append(backslashCount * 2 + 1, L'\\');
+            escaped.push_back(L'"');
+            backslashCount = 0;
+            continue;
+        }
+
+        if (backslashCount > 0)
+        {
+            escaped.append(backslashCount, L'\\');
+            backslashCount = 0;
+        }
+
+        escaped.push_back(ch);
+    }
+
+    if (backslashCount > 0)
+    {
+        escaped.append(backslashCount * 2, L'\\');
+    }
+
+    return escaped;
+}
+
 CExplorerCommand::CExplorerCommand() : _cRef(1)
 {
     InterlockedIncrement(&g_cRefModule);
@@ -156,7 +195,8 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
                 wcscpy_s(szDir, exePath.c_str());
                 PathRemoveFileSpecW(szDir);
 
-                std::wstring commandLine = L"\"" + std::wstring(pszName) + L"\"";
+                std::wstring escapedPath = EscapeForQuotedCommandLineArgument(pszName);
+                std::wstring commandLine = L"\"" + escapedPath + L"\"";
                 std::vector<wchar_t> cmdLine(commandLine.begin(), commandLine.end());
                 cmdLine.push_back(L'\0');
 
