@@ -152,12 +152,12 @@ namespace Greenshot.Forms
                         bool forwarded = NamedPipeClient.SendMessage(IpcEnvelope.CreateOpenFile(fileToOpen), timeoutMs: 250);
                         if (forwarded)
                         {
-                            Log.Info($"Startup file-forwarding succeeded via named pipe: '{fileToOpen}'");
+                            Log.Info($"Startup file-forwarding succeeded via named pipe: '{SanitizePathForLog(fileToOpen)}'");
                             anyForwarded = true;
                         }
                         else
                         {
-                            Log.Warn($"Startup file-forwarding failed via named pipe: '{fileToOpen}'");
+                            Log.Warn($"Startup file-forwarding failed via named pipe: '{SanitizePathForLog(fileToOpen)}'");
                             filesToOpenLocally.Add(fileToOpen);
                         }
                     }
@@ -188,11 +188,11 @@ namespace Greenshot.Forms
                             bool forwarded = NamedPipeClient.SendMessage(IpcEnvelope.CreateOpenFile(fileToOpen));
                             if (forwarded)
                             {
-                                Log.Info($"Forwarded file to running instance via named pipe: '{fileToOpen}'");
+                                Log.Info($"Forwarded file to running instance via named pipe: '{SanitizePathForLog(fileToOpen)}'");
                             }
                             else
                             {
-                                Log.Warn($"Failed forwarding file to running instance via named pipe: '{fileToOpen}'");
+                                Log.Warn($"Failed forwarding file to running instance via named pipe: '{SanitizePathForLog(fileToOpen)}'");
                             }
                         }
                     }
@@ -296,6 +296,24 @@ namespace Greenshot.Forms
             catch (Exception ex)
             {
                 Log.Error("Error releasing Mutex!", ex);
+            }
+        }
+
+        private static string SanitizePathForLog(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return "<empty>";
+            }
+
+            try
+            {
+                var fileName = Path.GetFileName(path);
+                return string.IsNullOrEmpty(fileName) ? "<unknown>" : fileName;
+            }
+            catch
+            {
+                return "<invalid-path>";
             }
         }
 
@@ -624,7 +642,7 @@ namespace Greenshot.Forms
 
                     if (!string.IsNullOrEmpty(filePath))
                     {
-                        Log.Info($"OpenFile command resolved path from named pipe: '{filePath}'");
+                        Log.Info($"OpenFile command resolved path from named pipe: '{SanitizePathForLog(filePath)}'");
                         ApplicationStartupHelper.OpenFile(filePath);
                     }
                     else
