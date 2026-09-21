@@ -1,4 +1,5 @@
 #include "ExplorerCommand.h"
+#include <shellapi.h>
 #include <shlwapi.h>
 #include <string>
 #include <vector>
@@ -152,32 +153,42 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
             LPWSTR pszName;
             if (SUCCEEDED(psi->GetDisplayName(SIGDN_FILESYSPATH, &pszName)))
             {
-                std::wstring args = L"\"" + exePath + L"\" \"" + std::wstring(pszName) + L"\"";
-                
-                // CreateProcessW requires a modifiable buffer for the command line
-                std::vector<wchar_t> cmdLine(args.begin(), args.end());
-                cmdLine.push_back(L'\0');
-                
                 WCHAR szDir[MAX_PATH];
                 wcscpy_s(szDir, exePath.c_str());
                 PathRemoveFileSpecW(szDir);
-                
-                STARTUPINFOW si = { sizeof(si) };
-                PROCESS_INFORMATION pi;
-                if (CreateProcessW(
+
+                std::wstring parameters = L"\"" + std::wstring(pszName) + L"\"";
+                HINSTANCE shellExecuteResult = ShellExecuteW(
+                    NULL,
+                    L"open",
                     exePath.c_str(),
-                    cmdLine.data(),
-                    NULL,
-                    NULL,
-                    FALSE,
-                    0,
-                    NULL,
+                    parameters.c_str(),
                     szDir,
-                    &si,
-                    &pi))
+                    SW_SHOWNORMAL);
+
+                if ((INT_PTR)shellExecuteResult <= 32)
                 {
-                    CloseHandle(pi.hProcess);
-                    CloseHandle(pi.hThread);
+                    std::wstring commandLine = L"\"" + exePath + L"\" " + parameters;
+                    std::vector<wchar_t> cmdLine(commandLine.begin(), commandLine.end());
+                    cmdLine.push_back(L'\0');
+
+                    STARTUPINFOW si = { sizeof(si) };
+                    PROCESS_INFORMATION pi;
+                    if (CreateProcessW(
+                        NULL,
+                        cmdLine.data(),
+                        NULL,
+                        NULL,
+                        FALSE,
+                        0,
+                        NULL,
+                        szDir,
+                        &si,
+                        &pi))
+                    {
+                        CloseHandle(pi.hProcess);
+                        CloseHandle(pi.hThread);
+                    }
                 }
 
                 CoTaskMemFree(pszName);
