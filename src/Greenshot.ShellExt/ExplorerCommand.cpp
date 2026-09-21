@@ -183,6 +183,9 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
     PathRemoveFileSpecW(szModule);
     std::wstring exePath = std::wstring(szModule) + L"\\Greenshot.exe";
 
+    std::vector<std::wstring> selectedFilePaths;
+    selectedFilePaths.reserve(count);
+
     for (DWORD i = 0; i < count; i++)
     {
         IShellItem* psi;
@@ -191,38 +194,49 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
             LPWSTR pszName;
             if (SUCCEEDED(psi->GetDisplayName(SIGDN_FILESYSPATH, &pszName)))
             {
-                WCHAR szDir[MAX_PATH];
-                wcscpy_s(szDir, exePath.c_str());
-                PathRemoveFileSpecW(szDir);
-
-                std::wstring escapedExePath = EscapeForQuotedCommandLineArgument(exePath);
-                std::wstring escapedPath = EscapeForQuotedCommandLineArgument(pszName);
-                std::wstring commandLine = L"\"" + escapedExePath + L"\" \"" + escapedPath + L"\"";
-                std::vector<wchar_t> cmdLine(commandLine.begin(), commandLine.end());
-                cmdLine.push_back(L'\0');
-
-                STARTUPINFOW si = { sizeof(si) };
-                PROCESS_INFORMATION pi;
-                if (CreateProcessW(
-                    exePath.c_str(),
-                    cmdLine.data(),
-                    NULL,
-                    NULL,
-                    FALSE,
-                    0,
-                    NULL,
-                    szDir,
-                    &si,
-                    &pi))
-                {
-                    CloseHandle(pi.hProcess);
-                    CloseHandle(pi.hThread);
-                }
-
+                selectedFilePaths.emplace_back(pszName);
                 CoTaskMemFree(pszName);
             }
             psi->Release();
         }
+    }
+
+    if (selectedFilePaths.empty())
+    {
+        return S_OK;
+    }
+
+    WCHAR szDir[MAX_PATH];
+    wcscpy_s(szDir, exePath.c_str());
+    PathRemoveFileSpecW(szDir);
+
+    std::wstring escapedExePath = EscapeForQuotedCommandLineArgument(exePath);
+    std::wstring commandLine = L"\"" + escapedExePath + L"\"";
+    for (const auto& selectedPath : selectedFilePaths)
+    {
+        std::wstring escapedPath = EscapeForQuotedCommandLineArgument(selectedPath);
+        commandLine += L" \"" + escapedPath + L"\"";
+    }
+
+    std::vector<wchar_t> cmdLine(commandLine.begin(), commandLine.end());
+    cmdLine.push_back(L'\0');
+
+    STARTUPINFOW si = { sizeof(si) };
+    PROCESS_INFORMATION pi;
+    if (CreateProcessW(
+        exePath.c_str(),
+        cmdLine.data(),
+        NULL,
+        NULL,
+        FALSE,
+        0,
+        NULL,
+        szDir,
+        &si,
+        &pi))
+    {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
     }
 
     return S_OK;
