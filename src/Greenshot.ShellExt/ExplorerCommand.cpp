@@ -210,33 +210,55 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
     wcscpy_s(szDir, exePath.c_str());
     PathRemoveFileSpecW(szDir);
 
+    auto launchGreenshot = [&](const std::wstring& commandLine) -> bool
+    {
+        std::vector<wchar_t> cmdLine(commandLine.begin(), commandLine.end());
+        cmdLine.push_back(L'\0');
+
+        STARTUPINFOW si = { sizeof(si) };
+        PROCESS_INFORMATION pi;
+        if (CreateProcessW(
+            exePath.c_str(),
+            cmdLine.data(),
+            NULL,
+            NULL,
+            FALSE,
+            0,
+            NULL,
+            szDir,
+            &si,
+            &pi))
+        {
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+            return true;
+        }
+
+        return false;
+    };
+
     std::wstring escapedExePath = EscapeForQuotedCommandLineArgument(exePath);
-    std::wstring commandLine = L"\"" + escapedExePath + L"\"";
+    std::wstring baseCommandLine = L"\"" + escapedExePath + L"\"";
+    std::wstring commandLine = baseCommandLine;
+    const size_t maxCommandLineLength = 30000;
     for (const auto& selectedPath : selectedFilePaths)
     {
         std::wstring escapedPath = EscapeForQuotedCommandLineArgument(selectedPath);
-        commandLine += L" \"" + escapedPath + L"\"";
+        std::wstring fileArgument = L" \"" + escapedPath + L"\"";
+
+        if (commandLine.length() + fileArgument.length() > maxCommandLineLength &&
+            commandLine.length() > baseCommandLine.length())
+        {
+            launchGreenshot(commandLine);
+            commandLine = baseCommandLine;
+        }
+
+        commandLine += fileArgument;
     }
 
-    std::vector<wchar_t> cmdLine(commandLine.begin(), commandLine.end());
-    cmdLine.push_back(L'\0');
-
-    STARTUPINFOW si = { sizeof(si) };
-    PROCESS_INFORMATION pi;
-    if (CreateProcessW(
-        exePath.c_str(),
-        cmdLine.data(),
-        NULL,
-        NULL,
-        FALSE,
-        0,
-        NULL,
-        szDir,
-        &si,
-        &pi))
+    if (commandLine.length() > baseCommandLine.length())
     {
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
+        launchGreenshot(commandLine);
     }
 
     return S_OK;
