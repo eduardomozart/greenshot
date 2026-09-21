@@ -210,6 +210,7 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
     wcscpy_s(szDir, exePath.c_str());
     PathRemoveFileSpecW(szDir);
 
+    DWORD launchError = ERROR_SUCCESS;
     auto launchGreenshot = [&](const std::wstring& commandLine) -> bool
     {
         std::vector<wchar_t> cmdLine(commandLine.begin(), commandLine.end());
@@ -234,6 +235,7 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
             return true;
         }
 
+        launchError = GetLastError();
         return false;
     };
 
@@ -241,6 +243,7 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
     std::wstring baseCommandLine = L"\"" + escapedExePath + L"\"";
     std::wstring commandLine = baseCommandLine;
     const size_t maxCommandLineLength = 30000;
+    bool launchFailed = false;
     for (const auto& selectedPath : selectedFilePaths)
     {
         std::wstring escapedPath = EscapeForQuotedCommandLineArgument(selectedPath);
@@ -249,16 +252,27 @@ IFACEMETHODIMP CExplorerCommand::Invoke(IShellItemArray* psiItemArray, IBindCtx*
         if (commandLine.length() + fileArgument.length() > maxCommandLineLength &&
             commandLine.length() > baseCommandLine.length())
         {
-            launchGreenshot(commandLine);
+            if (!launchGreenshot(commandLine))
+            {
+                launchFailed = true;
+                break;
+            }
             commandLine = baseCommandLine;
         }
 
         commandLine += fileArgument;
     }
 
-    if (commandLine.length() > baseCommandLine.length())
+    if (!launchFailed &&
+        commandLine.length() > baseCommandLine.length() &&
+        !launchGreenshot(commandLine))
     {
-        launchGreenshot(commandLine);
+        launchFailed = true;
+    }
+
+    if (launchFailed)
+    {
+        return HRESULT_FROM_WIN32(launchError == ERROR_SUCCESS ? ERROR_GEN_FAILURE : launchError);
     }
 
     return S_OK;
