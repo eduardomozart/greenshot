@@ -144,22 +144,27 @@ namespace Greenshot.Forms
                 {
                     // Try forwarding file-open requests first, even when mutex detection says no instance is running.
                     // This avoids duplicate instance startup when mutex visibility differs from named-pipe visibility.
+                    Log.Info($"Startup file-forwarding probe: files={options.Files.Length}, isAlreadyRunning={isAlreadyRunning}");
                     var filesToOpenLocally = new List<string>();
                     bool anyForwarded = false;
                     foreach (string fileToOpen in options.Files)
                     {
-                        if (NamedPipeClient.SendMessage(IpcEnvelope.CreateOpenFile(fileToOpen), timeoutMs: 250))
+                        bool forwarded = NamedPipeClient.SendMessage(IpcEnvelope.CreateOpenFile(fileToOpen), timeoutMs: 250);
+                        if (forwarded)
                         {
+                            Log.Info($"Startup file-forwarding succeeded via named pipe: '{fileToOpen}'");
                             anyForwarded = true;
                         }
                         else
                         {
+                            Log.Warn($"Startup file-forwarding failed via named pipe: '{fileToOpen}'");
                             filesToOpenLocally.Add(fileToOpen);
                         }
                     }
 
                     if (anyForwarded && filesToOpenLocally.Count == 0)
                     {
+                        Log.Info("Startup file-forwarding handled all files; exiting current process.");
                         FreeMutex();
                         Application.Exit();
                         return;
@@ -167,6 +172,7 @@ namespace Greenshot.Forms
 
                     if (anyForwarded)
                     {
+                        Log.Info($"Startup file-forwarding partially succeeded; opening remaining files locally: {filesToOpenLocally.Count}");
                         options.Files = filesToOpenLocally.ToArray();
                     }
                 }
@@ -179,7 +185,15 @@ namespace Greenshot.Forms
                     {
                         foreach (string fileToOpen in filesToOpen)
                         {
-                            NamedPipeClient.SendMessage(IpcEnvelope.CreateOpenFile(fileToOpen));
+                            bool forwarded = NamedPipeClient.SendMessage(IpcEnvelope.CreateOpenFile(fileToOpen));
+                            if (forwarded)
+                            {
+                                Log.Info($"Forwarded file to running instance via named pipe: '{fileToOpen}'");
+                            }
+                            else
+                            {
+                                Log.Warn($"Failed forwarding file to running instance via named pipe: '{fileToOpen}'");
+                            }
                         }
                     }
                     else
@@ -610,6 +624,7 @@ namespace Greenshot.Forms
 
                     if (!string.IsNullOrEmpty(filePath))
                     {
+                        Log.Info($"OpenFile command resolved path from named pipe: '{filePath}'");
                         ApplicationStartupHelper.OpenFile(filePath);
                     }
                     else
